@@ -1,0 +1,99 @@
+name: Build GJS with GTK 4 on Windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: >-
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-gtk4
+          python
+
+    - name: Install Visual Studio Build Tools
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    - name: Install Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install Meson
+      run: |
+        python -m pip install --upgrade pip
+        pip install meson ninja
+
+    - name: Set up environment variables
+      run: |
+        echo "CXX=g++" >> $GITHUB_ENV
+        echo "CXXFLAGS=-static -static-libgcc -static-libstdc++" >> $GITHUB_ENV
+        echo "LDFLAGS=-static" >> $GITHUB_ENV
+        
+    - name: Build SpiderMonkey
+      run: |
+        git clone https://github.com/mozilla-spidermonkey/spidermonkey.git
+        cd spidermonkey
+        echo "ac_add_options --enable-application=js" > .mozconfig
+        echo "mk_add_options MOZ_MAKE_FLAGS=-j12" >> .mozconfig
+        echo "ac_add_options --target=x86_64-pc-mingw32" >> .mozconfig
+        echo "ac_add_options --host=x86_64-pc-mingw32" >> .mozconfig
+        echo "ac_add_options --disable-tests" >> .mozconfig
+        echo "ac_add_options --enable-optimize" >> .mozconfig
+        echo "ac_add_options --disable-debug" >> .mozconfig
+        echo "ac_add_options --disable-jemalloc" >> .mozconfig
+        echo "ac_add_options --prefix=c:/software.b/mozjs128.bin" >> .mozconfig
+        ./mach build
+        ./mach install
+
+    - name: Configure GJS build
+      run: |
+        mkdir build
+        meson setup build --prefix=/mingw64
+
+    - name: Build GJS
+      run: |
+        ninja -C build
+        ninja -C build install
+
+    - name: Create static executable
+      run: |
+        cat <<EOT >> Makefile
+        CXX = g++
+        CXXFLAGS = -static -static-libgcc -static-libstdc++
+        LDFLAGS = -static
+        LIBS = -lgtk-4 -lgjs -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lspidermonkey
+
+        all: gjs_gtk_static.exe
+
+        gjs_gtk_static.exe: main.o
+            \$(CXX) \$(LDFLAGS) -o \$@ \$^ \$(LIBS)
+
+        main.o: main.cpp
+            \$(CXX) \$(CXXFLAGS) -c \$<
+        EOT
+
+        make
+
+    - name: Verify the build
+      run: |
+        ./gjs_gtk_static.exe
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: gjs-gtk4-executable
+        path: ./gjs_gtk_static.exe
