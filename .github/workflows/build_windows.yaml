@@ -93,7 +93,7 @@ jobs:
         ./gjs_gtk_static.exe
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: gjs-gtk4-executable
         path: ./gjs_gtk_static.exe
