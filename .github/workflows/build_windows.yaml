@@ -21,6 +21,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-gtk4
             python
+          cache: true
 
       - name: Install Visual Studio Build Tools
         uses: microsoft/setup-msbuild@v1.0.2
@@ -29,6 +30,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
+          cache: 'pip'
 
       - name: Install Meson and Ninja
         run: |
@@ -44,11 +46,11 @@ jobs:
       - name: Checkout SpiderMonkey repository
         uses: actions/checkout@v3
         with:
-          repository: mozilla-spidermonkey/spidermonkey
-          path: spidermonkey
+          repository: mozilla/gecko-dev
+          path: gecko-dev
 
       - name: Build SpiderMonkey
-        working-directory: spidermonkey
+        working-directory: gecko-dev/js/src
         run: |
           echo "ac_add_options --enable-application=js" > .mozconfig
           echo "mk_add_options MOZ_MAKE_FLAGS=-j12" >> .mozconfig
